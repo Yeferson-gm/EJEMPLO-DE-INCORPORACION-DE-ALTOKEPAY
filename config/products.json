@@ -1,0 +1,77 @@
+{
+  "version": 1,
+  "products": [
+    {
+      "id": "zapatilla-urbana-negra",
+      "name": "Zapatilla Urbana",
+      "description": "Suela ligera y acabado mate.",
+      "amount": 2,
+      "currency": "PEN",
+      "imageLabel": "Calzado",
+      "imageUrl": "/images/zapatilla-negra.svg"
+    },
+    {
+      "id": "zapatilla-runner-blanca",
+      "name": "Runner Blanca",
+      "description": "Malla transpirable para uso diario.",
+      "amount": 1,
+      "currency": "PEN",
+      "imageLabel": "Running",
+      "imageUrl": "/images/zapatilla-blanca.svg"
+    },
+    {
+      "id": "audifonos-studio",
+      "name": "Audífonos Studio",
+      "description": "Bluetooth y cancelación de ruido.",
+      "amount": 4,
+      "currency": "PEN",
+      "imageLabel": "Audio",
+      "imageUrl": "/images/audifonos-studio.svg"
+    },
+    {
+      "id": "teclado-mecanico",
+      "name": "Teclado Mecánico",
+      "description": "Formato compacto y switches táctiles.",
+      "amount": 6,
+      "currency": "PEN",
+      "imageLabel": "Setup",
+      "imageUrl": "/images/teclado-mecanico.svg"
+    },
+    {
+      "id": "mouse-inalambrico",
+      "name": "Mouse Inalámbrico",
+      "description": "Sensor preciso y batería recargable.",
+      "amount": 69.9,
+      "currency": "PEN",
+      "imageLabel": "Setup",
+      "imageUrl": "/images/mouse-inalambrico.svg"
+    },
+    {
+      "id": "power-bank-10000",
+      "name": "Power Bank 10K",
+      "description": "Carga rápida USB-C de 20 W.",
+      "amount": 79.9,
+      "currency": "PEN",
+      "imageLabel": "Energía",
+      "imageUrl": "/images/power-bank.svg"
+    },
+    {
+      "id": "mochila-commuter",
+      "name": "Mochila Commuter",
+      "description": "Compartimento acolchado de 15 pulgadas.",
+      "amount": 129.9,
+      "currency": "PEN",
+      "imageLabel": "Accesorio",
+      "imageUrl": "/images/mochila-commuter.svg"
+    },
+    {
+      "id": "lampara-escritorio",
+      "name": "Lámpara LED",
+      "description": "Luz regulable y puerto USB-C.",
+      "amount": 99.9,
+      "currency": "PEN",
+      "imageLabel": "Hogar",
+      "imageUrl": "/images/lampara-led.svg"
+    }
+  ]
+}

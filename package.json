@@ -1,0 +1,44 @@
+{
+  "name": "@altokepay/example-ecommerce",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "imports": {
+    "#app": "./src/app.ts",
+    "#config/*": "./src/config/*.ts",
+    "#configData/*": "./config/*.json",
+    "#data/*": "./src/data/*.ts",
+    "#domain/*": "./src/domain/*.ts",
+    "#lib/*": "./src/lib/*.ts",
+    "#realtime/*": "./src/realtime/*.ts",
+    "#routes/*": "./src/routes/*.ts",
+    "#services/*": "./src/services/*.ts"
+  },
+  "scripts": {
+    "dev": "bun run --watch index.ts",
+    "start": "bun run index.ts",
+    "test": "bun test",
+    "typecheck": "tsc --noEmit && tsc -p tsconfig.browser.json",
+    "check": "biome check .",
+    "lint": "biome lint .",
+    "format": "biome format .",
+    "lint:fix": "biome lint --write .",
+    "format:fix": "biome format --write .",
+    "int:check": "bun run typecheck && bun run check",
+    "security:audit": "bun audit --production --audit-level=high"
+  },
+  "dependencies": {
+    "@socket.io/bun-engine": "0.1.2",
+    "hono": "4.13.5",
+    "socket.io": "4.8.3",
+    "valibot": "1.4.2"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "2.5.11",
+    "@types/bun": "1.4.0",
+    "typescript": "7.0.2"
+  },
+  "engines": {
+    "bun": "1.4.0"
+  }
+}

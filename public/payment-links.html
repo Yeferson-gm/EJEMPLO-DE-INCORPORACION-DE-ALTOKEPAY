@@ -1,0 +1,198 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="description" content="Panel comercial de Links de pago del ejemplo AltokePay." />
+  <title>Links de pago · AltokePay Store</title>
+  <link rel="stylesheet" href="/styles.css" />
+</head>
+<body>
+  <header class="app-topbar">
+    <div class="app-topbar-inner">
+      <a class="brand" href="/">AltokePay Store</a>
+      <nav class="store-nav" aria-label="Navegación del comercio">
+        <a href="/" class="merchant-back-link">← Elegir experiencia</a>
+        <a href="/payment-links.html" aria-current="page">Links de pago</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="merchant-shell">
+    <header class="merchant-hero">
+      <div class="merchant-hero-copy">
+        <span class="eyebrow">Panel del comercio</span>
+        <h1>Links de pago</h1>
+        <p>Crea cobros para tus clientes y revisa el estado de los Links generados por esta tienda de ejemplo.</p>
+      </div>
+      <button id="openCreateLink" class="button button-primary merchant-primary-action" type="button">
+        <span aria-hidden="true">＋</span> Nuevo Link
+      </button>
+    </header>
+
+    <section class="metric-grid" aria-label="Resumen de Links de pago">
+      <article class="metric-card metric-awaiting">
+        <span class="metric-label">Esperando pago</span>
+        <strong id="metricAwaiting">0</strong>
+        <span class="metric-code">AWAITING_PAYMENT</span>
+      </article>
+      <article class="metric-card metric-paid">
+        <span class="metric-label">Pagados</span>
+        <strong id="metricPaid">0</strong>
+        <span class="metric-code">PAID</span>
+      </article>
+      <article class="metric-card metric-expired">
+        <span class="metric-label">Vencidos</span>
+        <strong id="metricExpired">0</strong>
+        <span class="metric-code">EXPIRED</span>
+      </article>
+      <article class="metric-card metric-canceled">
+        <span class="metric-label">Cancelados</span>
+        <strong id="metricCanceled">0</strong>
+        <span class="metric-code">CANCELED</span>
+      </article>
+    </section>
+
+    <div id="paymentLinksError" class="checkout-alert warning hidden" role="alert" tabindex="-1"></div>
+
+    <section class="merchant-inventory" aria-labelledby="inventoryTitle">
+      <header class="inventory-head">
+        <div>
+          <span class="section-label">Inventario local</span>
+          <h2 id="inventoryTitle">Cobros creados por esta tienda</h2>
+        </div>
+        <span id="inventoryCount" class="inventory-count">0 registros</span>
+      </header>
+
+      <div id="paymentLinksLoading" class="inventory-loading" aria-live="polite">Cargando inventario…</div>
+      <div id="paymentLinksEmpty" class="inventory-empty hidden">
+        <span class="empty-index">00</span>
+        <div>
+          <h3>Aún no hay Links de pago</h3>
+          <p>Crea el primer cobro. Podrás recuperar explícitamente su URL pública desde este panel.</p>
+        </div>
+        <button class="button secondary" type="button" data-open-create-link>Crear primer Link</button>
+      </div>
+
+      <div id="paymentLinksTableWrap" class="payment-links-table-wrap hidden">
+        <table class="payment-links-table">
+          <thead>
+            <tr>
+              <th scope="col">Cobro</th>
+              <th scope="col">Monto</th>
+              <th scope="col">Estado</th>
+              <th scope="col">Vencimiento</th>
+              <th scope="col"><span class="sr-only">Acciones</span></th>
+            </tr>
+          </thead>
+          <tbody id="paymentLinksBody"></tbody>
+        </table>
+      </div>
+    </section>
+
+    <p class="merchant-data-note">
+      Este inventario pertenece al servidor del ecommerce de ejemplo. No representa un endpoint de listado de la Client
+      API de AltokePay.
+    </p>
+  </main>
+
+  <dialog id="createLinkDialog" class="payer-dialog link-dialog" aria-labelledby="createLinkTitle">
+    <form id="createLinkForm" class="payer-form link-form">
+      <div id="createLinkFields" class="link-form-fields">
+        <div class="dialog-head">
+          <div>
+            <span class="eyebrow">Nuevo cobro</span>
+            <h2 id="createLinkTitle">Crear Link de pago</h2>
+          </div>
+          <button class="dialog-close" type="button" aria-label="Cerrar formulario" data-close-create-link>×</button>
+        </div>
+
+        <p class="dialog-description">
+          Define el monto, la vigencia y la identidad que deberá coincidir con quien realiza el pago.
+        </p>
+        <div id="createLinkError" class="form-error hidden" role="alert" tabindex="-1"></div>
+
+        <div class="link-field-grid">
+          <label for="linkAmount">
+            Monto en soles
+            <span class="money-input">
+              <span aria-hidden="true">S/</span>
+              <input id="linkAmount" name="amount" type="number" inputmode="decimal" min="0.01" step="0.01" placeholder="0.00" required />
+            </span>
+          </label>
+          <label for="linkExpiration">
+            Vigencia
+            <select id="linkExpiration" name="expirationMinutes" required>
+              <option value="15">15 minutos</option>
+              <option value="30">30 minutos</option>
+              <option value="60">1 hora</option>
+              <option value="360">6 horas</option>
+              <option value="1440">24 horas</option>
+            </select>
+          </label>
+        </div>
+
+        <label for="linkMessage">
+          Mensaje del cobro
+          <textarea id="linkMessage" name="message" rows="3" minlength="1" maxlength="500" placeholder="Ej. Pedido #1048" required></textarea>
+          <small class="field-hint">Será visible para tu cliente en la página de pago.</small>
+        </label>
+
+        <fieldset class="identity-fieldset">
+          <legend>¿Cómo identificarás al pagador?</legend>
+          <div class="identity-options">
+            <label class="identity-option">
+              <input type="radio" name="payerIdentityType" value="dni" checked />
+              <span>
+                <strong>Consultar por DNI</strong>
+                <small>AltokePay resolverá el nombre asociado.</small>
+              </span>
+            </label>
+            <label class="identity-option">
+              <input type="radio" name="payerIdentityType" value="name" />
+              <span>
+                <strong>Ingresar nombre</strong>
+                <small>Define directamente el titular esperado.</small>
+              </span>
+            </label>
+          </div>
+        </fieldset>
+
+        <label id="payerDniField" for="linkPayerDni">
+          DNI del pagador
+          <input id="linkPayerDni" name="payerDni" type="text" inputmode="numeric" autocomplete="off" pattern="[0-9]{8}" minlength="8" maxlength="8" required />
+          <small class="field-hint">Debe contener exactamente 8 dígitos.</small>
+        </label>
+        <label id="payerNameField" class="hidden" for="linkPayerName">
+          Nombre completo del pagador
+          <input id="linkPayerName" name="payerName" type="text" autocomplete="off" minlength="3" maxlength="160" />
+          <small class="field-hint">Debe coincidir con el titular de la billetera desde la que pagará.</small>
+        </label>
+
+        <div class="dialog-actions">
+          <button class="button secondary" type="button" data-close-create-link>Cancelar</button>
+          <button id="createLinkSubmit" class="button button-primary" type="submit">Crear Link de pago</button>
+        </div>
+      </div>
+
+      <section id="createLinkSuccess" class="link-success hidden" aria-live="polite">
+        <div class="success-check" aria-hidden="true">✓</div>
+        <span class="eyebrow">Link creado</span>
+        <h2>Listo para compartir</h2>
+        <p>La URL pública se conserva de forma privada y también puede recuperarse explícitamente desde el inventario.</p>
+        <div class="link-capability-box">
+          <span>URL de pago</span>
+          <a id="createdPublicUrl" href="#" target="_blank" rel="noopener noreferrer"></a>
+        </div>
+        <div class="link-success-actions">
+          <button id="copyPublicUrl" class="button secondary" type="button">Copiar URL</button>
+          <a id="openPublicUrl" class="button button-primary" href="#" target="_blank" rel="noopener noreferrer">Abrir Link</a>
+        </div>
+        <button class="link-success-close" type="button" data-close-create-link>Volver al panel</button>
+      </section>
+    </form>
+  </dialog>
+
+  <script type="module" src="/payment-links.js"></script>
+</body>
+</html>

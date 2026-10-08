@@ -1,0 +1,156 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta
+      name="description"
+      content="Prueba Checkout y Links de pago con la integración de referencia de AltokePay."
+    />
+    <title>AltokePay Store</title>
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body>
+    <header class="app-topbar">
+      <div class="app-topbar-inner">
+        <a class="brand" href="/">AltokePay Store</a>
+        <div class="store-session-meta">
+          <span id="storeModeBadge" class="store-mode-badge hidden"></span>
+
+          <button id="changeExperience" class="button ghost hidden" type="button">Cambiar prueba</button>
+        </div>
+      </div>
+    </header>
+
+    <main>
+      <section id="experienceChooser" class="experience-shell" aria-labelledby="experienceTitle">
+        <div class="experience-intro">
+          <span class="eyebrow">Entorno de demostración</span>
+          <h1 id="experienceTitle">¿Qué quieres probar?</h1>
+          <p>
+            Elige tu rol en la demostración: compra como cliente con Checkout o administra Links de pago desde el panel
+            del comercio.
+          </p>
+        </div>
+
+        <div class="experience-grid" aria-label="Experiencias disponibles">
+          <button class="experience-card" type="button" data-flow="checkout">
+            <span class="experience-card-number">01</span>
+            <span class="experience-icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24" focusable="false">
+                <path d="M3 6.75A1.75 1.75 0 0 1 4.75 5h14.5A1.75 1.75 0 0 1 21 6.75v10.5A1.75 1.75 0 0 1 19.25 19H4.75A1.75 1.75 0 0 1 3 17.25V6.75Z" />
+                <path d="M3.5 9h17M7 15h3" />
+              </svg>
+            </span>
+            <span class="experience-card-copy">
+              <strong>Probar Checkout como cliente</strong>
+              <span>Simula una compra, elige receptor y billetera, y completa el pago como comprador.</span>
+            </span>
+            <span class="experience-card-action">Comprar con Checkout <span aria-hidden="true">→</span></span>
+          </button>
+
+          <button class="experience-card" type="button" data-flow="payment_link">
+            <span class="experience-card-number">02</span>
+            <span class="experience-icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24" focusable="false">
+                <path d="M9.5 14.5 14.5 9M7.75 16.25l-1 1a3.18 3.18 0 0 1-4.5-4.5l3-3a3.18 3.18 0 0 1 4.5 0M16.25 7.75l1-1a3.18 3.18 0 0 1 4.5 4.5l-3 3a3.18 3.18 0 0 1-4.5 0" />
+              </svg>
+            </span>
+            <span class="experience-card-copy">
+              <strong>Crear Link como comercio</strong>
+              <span>Abre el panel operativo, revisa tus cobros y genera URLs de pago listas para compartir.</span>
+            </span>
+            <span class="experience-card-action">Crear Link de pago <span aria-hidden="true">→</span></span>
+          </button>
+        </div>
+
+        <p class="experience-privacy">
+          Esta referencia no expone credenciales de integración ni datos de identidad en el navegador después de crear
+          la sesión.
+        </p>
+      </section>
+
+      <section id="storeView" class="store-shell hidden" aria-labelledby="catalogTitle">
+        <header class="store-view-header">
+          <div>
+            <span id="storeFlowEyebrow" class="eyebrow"></span>
+            <h1 id="storeFlowTitle"></h1>
+            <p id="storeFlowDescription"></p>
+          </div>
+        </header>
+
+        <div id="storeError" class="checkout-alert warning hidden" role="alert" aria-live="assertive"></div>
+
+        <section class="catalog-section" aria-labelledby="catalogTitle">
+          <div class="catalog-head">
+            <div>
+              <h2 id="catalogTitle">Catálogo</h2>
+              <span id="productCount"></span>
+            </div>
+          </div>
+          <div id="products" class="catalog-grid" aria-live="polite"></div>
+        </section>
+      </section>
+    </main>
+
+    <dialog id="payerDialog" class="payer-dialog" aria-labelledby="payerDialogTitle">
+      <form id="payerForm" class="payer-form">
+        <div class="dialog-head">
+          <div>
+            <span class="eyebrow">Identidad de prueba</span>
+            <h2 id="payerDialogTitle">Antes de continuar</h2>
+          </div>
+          <button class="dialog-close" type="button" aria-label="Cerrar formulario" data-close-dialog>×</button>
+        </div>
+
+        <p id="payerDialogDescription" class="dialog-description"></p>
+
+        <div id="payerFormError" class="form-error hidden" role="alert" tabindex="-1"></div>
+
+        <label class="payer-dni-field" for="payerDni">
+          DNI del pagador
+          <input
+            id="payerDni"
+            name="dni"
+            type="text"
+            inputmode="numeric"
+            autocomplete="off"
+            pattern="[0-9]{8}"
+            minlength="8"
+            maxlength="8"
+            aria-describedby="payerDniHint"
+            required
+          />
+          <small id="payerDniHint">
+            AltokePay resolverá el nombre asociado al DNI desde el servidor al crear el cobro.
+          </small>
+        </label>
+
+        <div class="dialog-actions">
+          <button class="button secondary" type="button" data-close-dialog>Cancelar</button>
+          <button id="payerSubmit" class="button button-primary" type="submit">Continuar</button>
+        </div>
+      </form>
+    </dialog>
+
+
+    <template id="productCardTemplate">
+      <article class="catalog-card">
+        <div class="catalog-card-media">
+          <img class="product-image" alt="" loading="lazy" />
+          <span class="chip product-image-label"></span>
+        </div>
+        <div class="catalog-card-body">
+          <h3 class="product-name"></h3>
+          <p class="product-description"></p>
+          <div class="catalog-card-footer">
+            <p class="price"></p>
+            <button class="button button-primary select-product" type="button"></button>
+          </div>
+        </div>
+      </article>
+    </template>
+
+    <script type="module" src="/app.js"></script>
+  </body>
+</html>

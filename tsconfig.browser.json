@@ -1,0 +1,16 @@
+{
+  "compilerOptions": {
+    "lib": ["ESNext", "DOM"],
+    "target": "ESNext",
+    "module": "Preserve",
+    "moduleResolution": "bundler",
+    "allowJs": true,
+    "checkJs": true,
+    "noEmit": true,
+    "strict": false,
+    "paths": {
+      "/*": ["./public/*"]
+    }
+  },
+  "include": ["public/**/*.js", "public/**/*.d.ts"]
+}

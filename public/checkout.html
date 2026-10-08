@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content="Checkout de ejemplo integrado con AltokePay." />
+    <title>Checkout | AltokePay Store</title>
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body>
+    <header class="app-topbar">
+      <div class="app-topbar-inner">
+        <a class="brand" href="/">AltokePay Store</a>
+        <nav class="store-nav" aria-label="Checkout">
+          <a href="/">Volver a la tienda</a>
+        </nav>
+      </div>
+    </header>
+
+    <main class="checkout-shell">
+      <section class="page-header compact-header">
+        <div>
+          <h1>Finaliza tu compra</h1>
+          <p>Elige cómo deseas completar el pago.</p>
+        </div>
+      </section>
+
+      <div class="checkout-layout">
+        <section class="checkout-main" aria-label="Flujo de pago">
+          <div id="checkoutStartCard" class="checkout-card hidden"></div>
+          <div id="checkoutWaitingCard" class="checkout-card hidden"></div>
+        </section>
+        <aside id="orderSummary" class="checkout-summary" aria-label="Resumen del pedido"></aside>
+      </div>
+    </main>
+
+    <script src="/socket.io/socket.io.js"></script>
+    <script type="module" src="/checkout.js"></script>
+  </body>
+</html>
