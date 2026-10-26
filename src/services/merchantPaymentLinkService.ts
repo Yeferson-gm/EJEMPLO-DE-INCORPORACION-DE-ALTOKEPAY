@@ -36,6 +36,81 @@ const paymentLinkStatusViewSchema = v.object({
   updatedAt: requiredText,
 });
 
+const paymentLinkWebhookSchema = v.variant('type', [
+  ...(['payment-link.started', 'payment-link.expired', 'payment-link.canceled'] as const).map(type =>
+    v.object({
+      type: v.literal(type),
+      data: v.object({
+        paymentLink: v.object({
+          id: requiredText,
+          providerCode: requiredText,
+          amount: v.number(),
+          currency: v.literal('PEN'),
+          status: paymentLinkStatusSchema,
+          updatedAt: requiredText,
+        }),
+      }),
+    }),
+  ),
+  v.object({
+    type: v.literal('payment-link.paid'),
+    data: v.object({
+      paymentLink: v.object({
+        id: requiredText,
+        providerCode: requiredText,
+        amount: v.number(),
+        currency: v.literal('PEN'),
+        status: v.literal('paid'),
+        updatedAt: requiredText,
+      }),
+      payment: v.object({
+        id: requiredText,
+        providerCode: requiredText,
+        amount: v.number(),
+        currency: v.literal('PEN'),
+        status: v.literal('processed'),
+      }),
+    }),
+  }),
+]);
+const webhookStatuses = {
+  'payment-link.started': 'awaiting_payment',
+  'payment-link.paid': 'paid',
+  'payment-link.expired': 'expired',
+  'payment-link.canceled': 'canceled',
+} as const;
+
+export const applyPaymentLinkWebhook = async (input: unknown): Promise<boolean | null> => {
+  const parsed = v.safeParse(paymentLinkWebhookSchema, input);
+  if (!parsed.success) throw new HttpError(400, 'INVALID_WEBHOOK_PAYLOAD', 'Invalid webhook payload');
+  const payload = parsed.output;
+  const link = payload.data.paymentLink;
+  if (
+    link.status !== webhookStatuses[payload.type] ||
+    (payload.type === 'payment-link.paid' &&
+      (payload.data.payment.amount !== link.amount ||
+        payload.data.payment.currency !== link.currency ||
+        payload.data.payment.providerCode !== link.providerCode))
+  )
+    throw new HttpError(400, 'WEBHOOK_PAYMENT_LINK_MISMATCH', 'Webhook payment does not match the Link');
+  const eventTime = Date.parse(link.updatedAt);
+  if (!Number.isFinite(eventTime)) throw new HttpError(400, 'INVALID_WEBHOOK_PAYLOAD', 'Invalid webhook timestamp');
+  return exampleRepository.mutatePaymentLinks(records => {
+    const local = records.find(record => record.id === link.id);
+    if (!local) return [records, null] as const;
+    if (link.amount !== local.amount || link.currency !== local.currency) {
+      throw new HttpError(400, 'WEBHOOK_PAYMENT_LINK_MISMATCH', 'Webhook snapshot does not match the local Link');
+    }
+    if (local.status !== 'awaiting_payment') {
+      if (local.status === link.status || link.status === 'awaiting_payment') return [records, false] as const;
+      throw new HttpError(400, 'WEBHOOK_PAYMENT_LINK_MISMATCH', 'Webhook conflicts with the local Link');
+    }
+    if (eventTime < Date.parse(local.updatedAt)) return [records, false] as const;
+    const updated = { ...local, status: link.status, updatedAt: link.updatedAt };
+    return [records.map(record => (record.id === link.id ? updated : record)), true] as const;
+  });
+};
+
 type PaymentLinkView = v.InferOutput<typeof paymentLinkViewSchema>;
 type CreationResult = { readonly paymentLink: PaymentLinkListItem; readonly publicUrl: string };
 

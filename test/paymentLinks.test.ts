@@ -1,6 +1,8 @@
 import { afterEach, beforeEach, describe, expect, test } from 'bun:test';
+import { createHmac } from 'node:crypto';
 import { readFile } from 'node:fs/promises';
 import { createApp } from '#app';
+import { env } from '#config/env';
 
 import { exampleRepository } from '#data/exampleRepository';
 import {
@@ -10,6 +12,7 @@ import {
   recoverLocalPaymentLinkPublicUrl,
   refreshLocalPaymentLink,
 } from '#services/merchantPaymentLinkService';
+import { processCheckoutWebhook } from '#services/orderService';
 import {
   cancelPaymentLink,
   createPaymentLink,
@@ -69,6 +72,321 @@ afterEach(() => {
 });
 
 describe('Payment Link Client API coverage', () => {
+  test('confirms a Link only from its validated signed paid event and deduplicates delivery', async () => {
+    await exampleRepository.mutatePaymentLinks(
+      () =>
+        [
+          [
+            {
+              id: 'link-1',
+              externalId: 'link-order',
+              amount: 24.9,
+              currency: 'PEN',
+              message: 'Pedido 1048',
+              publicUrl,
+              status: 'awaiting_payment',
+              expiresAt,
+              createdAt,
+              updatedAt: createdAt,
+            },
+          ],
+          undefined,
+        ] as const,
+    );
+    await exampleRepository.mutateWebhookReceipts(() => [[], undefined] as const);
+    const payload = {
+      id: 'link-event-1',
+      type: 'payment-link.paid',
+      environment: 'sandbox' as const,
+      livemode: false,
+      createdAt: '2026-09-09T12:05:00.000Z',
+      data: {
+        paymentLink: {
+          id: 'link-1',
+          providerCode: 'yape',
+          amount: 24.9,
+          currency: 'PEN',
+          status: 'paid',
+          updatedAt: '2026-09-09T12:05:00.000Z',
+        },
+        payment: { id: 'payment-1', providerCode: 'yape', amount: 24.9, currency: 'PEN', status: 'processed' },
+      },
+    };
+    const first = await processCheckoutWebhook('link-event-1', 'delivery-1', payload);
+    const replay = await processCheckoutWebhook('link-event-1', 'delivery-2', payload);
+    expect(first).toMatchObject({ updated: true, retryable: false });
+    expect(replay.duplicate).toBe(true);
+    expect((await exampleRepository.readPaymentLinks())[0]?.status).toBe('paid');
+    expect((await exampleRepository.readWebhookReceipts())[0]?.deliveryIds).toEqual(['delivery-1', 'delivery-2']);
+    expect(requests).toHaveLength(0);
+  });
+
+  test('rejects a mismatched Link payment instead of confirming it', async () => {
+    await exampleRepository.mutatePaymentLinks(
+      () =>
+        [
+          [
+            {
+              id: 'link-1',
+              externalId: 'link-order',
+              amount: 24.9,
+              currency: 'PEN',
+              message: 'Pedido 1048',
+              publicUrl,
+              status: 'awaiting_payment',
+              expiresAt,
+              createdAt,
+              updatedAt: createdAt,
+            },
+          ],
+          undefined,
+        ] as const,
+    );
+    await exampleRepository.mutateWebhookReceipts(() => [[], undefined] as const);
+    await expect(
+      processCheckoutWebhook('link-bad-1', 'delivery-1', {
+        id: 'link-bad-1',
+        type: 'payment-link.paid',
+        environment: 'sandbox',
+        livemode: false,
+        createdAt: '2026-09-09T12:05:00.000Z',
+        data: {
+          paymentLink: {
+            id: 'link-1',
+            providerCode: 'yape',
+            amount: 24.9,
+            currency: 'PEN',
+            status: 'paid',
+            updatedAt: '2026-09-09T12:05:00.000Z',
+          },
+          payment: { id: 'payment-1', providerCode: 'yape', amount: 1, currency: 'PEN', status: 'processed' },
+        },
+      }),
+    ).rejects.toMatchObject({ status: 400 });
+    expect((await exampleRepository.readPaymentLinks())[0]?.status).toBe('awaiting_payment');
+  });
+
+  test('asks for retry when a signed Link event arrives before the local record exists', async () => {
+    await exampleRepository.mutateWebhookReceipts(() => [[], undefined] as const);
+    const result = await processCheckoutWebhook('link-missing-1', 'delivery-1', {
+      id: 'link-missing-1',
+      type: 'payment-link.started',
+      environment: 'sandbox',
+      livemode: false,
+      createdAt: '2026-09-09T12:05:00.000Z',
+      data: {
+        paymentLink: {
+          id: 'link-not-yet-stored',
+          providerCode: 'yape',
+          amount: 24.9,
+          currency: 'PEN',
+          status: 'awaiting_payment',
+          updatedAt: '2026-09-09T12:05:00.000Z',
+        },
+      },
+    });
+    expect(result.retryable).toBe(true);
+    expect((await exampleRepository.readWebhookReceipts())[0]?.status).toBe('retryable_missing_order');
+  });
+
+  test('rejects a Link webhook from the wrong environment before updating state', async () => {
+    await exampleRepository.mutatePaymentLinks(
+      () =>
+        [
+          [
+            {
+              id: 'link-1',
+              externalId: 'link-order',
+              amount: 24.9,
+              currency: 'PEN',
+              message: 'Pedido 1048',
+              publicUrl,
+              status: 'awaiting_payment',
+              expiresAt,
+              createdAt,
+              updatedAt: createdAt,
+            },
+          ],
+          undefined,
+        ] as const,
+    );
+    await expect(
+      processCheckoutWebhook('link-wrong-env', 'delivery-1', {
+        id: 'link-wrong-env',
+        type: 'payment-link.paid',
+        environment: 'production',
+        livemode: true,
+        createdAt: '2026-09-09T12:05:00.000Z',
+        data: {
+          paymentLink: {
+            id: 'link-1',
+            providerCode: 'yape',
+            amount: 24.9,
+            currency: 'PEN',
+            status: 'paid',
+            updatedAt: '2026-09-09T12:05:00.000Z',
+          },
+          payment: { id: 'payment-1', providerCode: 'yape', amount: 24.9, currency: 'PEN', status: 'processed' },
+        },
+      }),
+    ).rejects.toMatchObject({ status: 400 });
+    expect((await exampleRepository.readPaymentLinks())[0]?.status).toBe('awaiting_payment');
+  });
+
+  test('ignores a late started hint after a Link was confirmed paid', async () => {
+    await exampleRepository.mutatePaymentLinks(
+      () =>
+        [
+          [
+            {
+              id: 'link-1',
+              externalId: 'link-order',
+              amount: 24.9,
+              currency: 'PEN',
+              message: 'Pedido 1048',
+              publicUrl,
+              status: 'paid',
+              expiresAt,
+              createdAt,
+              updatedAt: '2026-09-09T12:05:00.000Z',
+            },
+          ],
+          undefined,
+        ] as const,
+    );
+    const result = await processCheckoutWebhook('link-late-start', 'delivery-1', {
+      id: 'link-late-start',
+      type: 'payment-link.started',
+      environment: 'sandbox',
+      livemode: false,
+      createdAt: '2026-09-09T12:01:00.000Z',
+      data: {
+        paymentLink: {
+          id: 'link-1',
+          providerCode: 'yape',
+          amount: 24.9,
+          currency: 'PEN',
+          status: 'awaiting_payment',
+          updatedAt: '2026-09-09T12:01:00.000Z',
+        },
+      },
+    });
+    expect(result.updated).toBe(false);
+    expect((await exampleRepository.readPaymentLinks())[0]?.status).toBe('paid');
+  });
+
+  test('accepts a signed Link webhook over HTTP and rejects an invalid signature', async () => {
+    await exampleRepository.mutatePaymentLinks(
+      () =>
+        [
+          [
+            {
+              id: 'link-1',
+              externalId: 'link-order',
+              amount: 24.9,
+              currency: 'PEN',
+              message: 'Pedido 1048',
+              publicUrl,
+              status: 'awaiting_payment',
+              expiresAt,
+              createdAt,
+              updatedAt: createdAt,
+            },
+          ],
+          undefined,
+        ] as const,
+    );
+    await exampleRepository.mutateWebhookReceipts(() => [[], undefined] as const);
+    const eventId = 'signed-link-paid';
+    const body = JSON.stringify({
+      id: eventId,
+      type: 'payment-link.paid',
+      environment: 'sandbox',
+      livemode: false,
+      createdAt: '2026-09-09T12:05:00.000Z',
+      data: {
+        paymentLink: {
+          id: 'link-1',
+          providerCode: 'yape',
+          amount: 24.9,
+          currency: 'PEN',
+          status: 'paid',
+          updatedAt: '2026-09-09T12:05:00.000Z',
+        },
+        payment: { id: 'payment-1', providerCode: 'yape', amount: 24.9, currency: 'PEN', status: 'processed' },
+      },
+    });
+    const timestamp = String(Math.floor(Date.now() / 1000));
+    const headers = {
+      'X-AltokePay-Webhook-Id': 'endpoint-1',
+      'X-AltokePay-Delivery-Id': 'delivery-1',
+      'X-AltokePay-Event-Id': eventId,
+      'X-AltokePay-Environment': 'sandbox',
+      'X-AltokePay-Timestamp': timestamp,
+      'X-AltokePay-Attempt': '1',
+      'X-AltokePay-Signature': createHmac('sha256', env.ALTOKEPAY_WEBHOOK_SECRET)
+        .update(`${timestamp}.${body}`)
+        .digest('hex'),
+    };
+    const app = createApp();
+    const invalid = await app.request('/webhooks/altokepay', {
+      method: 'POST',
+      headers: { ...headers, 'X-AltokePay-Signature': '0'.repeat(64) },
+      body,
+    });
+    expect(invalid.status).toBe(401);
+    expect((await exampleRepository.readPaymentLinks())[0]?.status).toBe('awaiting_payment');
+    const valid = await app.request('/webhooks/altokepay', { method: 'POST', headers, body });
+    expect(valid.status).toBe(200);
+    expect((await exampleRepository.readPaymentLinks())[0]?.status).toBe('paid');
+  });
+
+  test.each(['payment-link.expired', 'payment-link.canceled'] as const)(
+    'applies a valid %s lifecycle event to the local Link',
+    async type => {
+      await exampleRepository.mutatePaymentLinks(
+        () =>
+          [
+            [
+              {
+                id: 'link-1',
+                externalId: 'link-order',
+                amount: 24.9,
+                currency: 'PEN',
+                message: 'Pedido 1048',
+                publicUrl,
+                status: 'awaiting_payment',
+                expiresAt,
+                createdAt,
+                updatedAt: createdAt,
+              },
+            ],
+            undefined,
+          ] as const,
+      );
+      const status = type === 'payment-link.expired' ? 'expired' : 'canceled';
+      const result = await processCheckoutWebhook(type, 'delivery-1', {
+        id: type,
+        type,
+        environment: 'sandbox',
+        livemode: false,
+        createdAt: '2026-09-09T12:05:00.000Z',
+        data: {
+          paymentLink: {
+            id: 'link-1',
+            providerCode: 'yape',
+            amount: 24.9,
+            currency: 'PEN',
+            status,
+            updatedAt: '2026-09-09T12:05:00.000Z',
+          },
+        },
+      });
+      expect(result.updated).toBe(true);
+      expect((await exampleRepository.readPaymentLinks())[0]?.status).toBe(status);
+    },
+  );
+
   test('implements exactly the five current point operations', async () => {
     responder = request =>
       success(paymentLinkView({ externalId: request.init.body ? bodyOf(request).externalId : undefined }));

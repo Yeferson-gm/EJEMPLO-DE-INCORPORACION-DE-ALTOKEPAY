@@ -9,12 +9,12 @@ Aplicación de referencia para integrar la **Client API de AltokePay** desde un 
 | Experiencia | Usuario | Contrato AltokePay | Confirmación |
 |---|---|---|---|
 | Checkout de ecommerce | Comprador | Seis operaciones puntuales de `/api/v1/client/checkouts` | Webhook firmado; las lecturas HTTP solo recuperan estado |
-| Panel de Links de Pago | Comercio | Cinco operaciones puntuales de `/api/v1/client/payment-links` | Estado autoritativo de AltokePay y webhook cuando existe un Checkout asociado |
+| Panel de Links de Pago | Comercio | Cinco operaciones puntuales de `/api/v1/client/payment-links` | Webhook `payment-link.paid` y lecturas puntuales del estado autoritativo |
 
 Los dos flujos son deliberadamente independientes:
 
 - **Checkout local** solicita el DNI dentro de una sesión temporal protegida, crea un Checkout para una compra concreta y libera la orden únicamente después de procesar el snapshot de un webhook válido.
-- **Panel comercial de Links de Pago** mantiene un inventario propio de Links, permite crear cobros con DNI o nombre directo y no usa productos, tarjetas ni la sesión del comprador.
+- **Panel comercial de Links de Pago** mantiene un inventario propio de Links, permite crear cobros con DNI o nombre directo y no usa productos, tarjetas ni la sesión del comprador. El webhook firmado `payment-link.paid` notifica la confirmación de un Link; las lecturas puntuales recuperan su estado autoritativo sin polling.
 
 Desde la portada, **“Crear Link como comercio” abre `/payment-links.html` directamente** y solicita las credenciales HTTP Basic del comercio. No redirige al catálogo ni mezcla el Link con un Checkout de producto. El navegador nunca recibe la API key, access/refresh tokens OAuth, el DNI persistido, el secreto webhook ni las capabilities públicas almacenadas por el servidor.
 
@@ -181,7 +181,7 @@ Configura en Admin:
 EXAMPLE_PUBLIC_URL/webhooks/altokepay
 ```
 
-Eventos soportados: `payment.received`, `checkout.created`, `checkout.paid`, `checkout.expired`, `checkout.canceled`, `checkout.retry_created` y `webhook.ping`.
+Eventos soportados: `payment.received`, `checkout.created`, `checkout.paid`, `checkout.expired`, `checkout.canceled`, `checkout.retry_created`, `payment-link.started`, `payment-link.paid`, `payment-link.expired`, `payment-link.canceled` y `webhook.ping`. Suscribe `payment-link.*` en el endpoint antes de compartir el Link. Un Link no emite `checkout.*`. El receptor valida ID, estado, entorno, monto, moneda y, para `payment-link.paid`, el pago procesado antes de actualizar el inventario local; un Link aún no guardado solicita reentrega.
 
 El receptor exige una sola representación válida de todos los headers:
 
