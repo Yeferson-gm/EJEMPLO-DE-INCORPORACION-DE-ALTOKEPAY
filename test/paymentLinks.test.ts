@@ -1,6 +1,8 @@
 import { afterEach, beforeEach, describe, expect, test } from 'bun:test';
+import { createHmac } from 'node:crypto';
 import { readFile } from 'node:fs/promises';
 import { createApp } from '#app';
+import { env } from '#config/env';
 
 import { exampleRepository } from '#data/exampleRepository';
 import {
@@ -272,6 +274,118 @@ describe('Payment Link Client API coverage', () => {
     expect(result.updated).toBe(false);
     expect((await exampleRepository.readPaymentLinks())[0]?.status).toBe('paid');
   });
+
+  test('accepts a signed Link webhook over HTTP and rejects an invalid signature', async () => {
+    await exampleRepository.mutatePaymentLinks(
+      () =>
+        [
+          [
+            {
+              id: 'link-1',
+              externalId: 'link-order',
+              amount: 24.9,
+              currency: 'PEN',
+              message: 'Pedido 1048',
+              publicUrl,
+              status: 'awaiting_payment',
+              expiresAt,
+              createdAt,
+              updatedAt: createdAt,
+            },
+          ],
+          undefined,
+        ] as const,
+    );
+    await exampleRepository.mutateWebhookReceipts(() => [[], undefined] as const);
+    const eventId = 'signed-link-paid';
+    const body = JSON.stringify({
+      id: eventId,
+      type: 'payment-link.paid',
+      environment: 'sandbox',
+      livemode: false,
+      createdAt: '2026-09-09T12:05:00.000Z',
+      data: {
+        paymentLink: {
+          id: 'link-1',
+          providerCode: 'yape',
+          amount: 24.9,
+          currency: 'PEN',
+          status: 'paid',
+          updatedAt: '2026-09-09T12:05:00.000Z',
+        },
+        payment: { id: 'payment-1', providerCode: 'yape', amount: 24.9, currency: 'PEN', status: 'processed' },
+      },
+    });
+    const timestamp = String(Math.floor(Date.now() / 1000));
+    const headers = {
+      'X-AltokePay-Webhook-Id': 'endpoint-1',
+      'X-AltokePay-Delivery-Id': 'delivery-1',
+      'X-AltokePay-Event-Id': eventId,
+      'X-AltokePay-Environment': 'sandbox',
+      'X-AltokePay-Timestamp': timestamp,
+      'X-AltokePay-Attempt': '1',
+      'X-AltokePay-Signature': createHmac('sha256', env.ALTOKEPAY_WEBHOOK_SECRET)
+        .update(`${timestamp}.${body}`)
+        .digest('hex'),
+    };
+    const app = createApp();
+    const invalid = await app.request('/webhooks/altokepay', {
+      method: 'POST',
+      headers: { ...headers, 'X-AltokePay-Signature': '0'.repeat(64) },
+      body,
+    });
+    expect(invalid.status).toBe(401);
+    expect((await exampleRepository.readPaymentLinks())[0]?.status).toBe('awaiting_payment');
+    const valid = await app.request('/webhooks/altokepay', { method: 'POST', headers, body });
+    expect(valid.status).toBe(200);
+    expect((await exampleRepository.readPaymentLinks())[0]?.status).toBe('paid');
+  });
+
+  test.each(['payment-link.expired', 'payment-link.canceled'] as const)(
+    'applies a valid %s lifecycle event to the local Link',
+    async type => {
+      await exampleRepository.mutatePaymentLinks(
+        () =>
+          [
+            [
+              {
+                id: 'link-1',
+                externalId: 'link-order',
+                amount: 24.9,
+                currency: 'PEN',
+                message: 'Pedido 1048',
+                publicUrl,
+                status: 'awaiting_payment',
+                expiresAt,
+                createdAt,
+                updatedAt: createdAt,
+              },
+            ],
+            undefined,
+          ] as const,
+      );
+      const status = type === 'payment-link.expired' ? 'expired' : 'canceled';
+      const result = await processCheckoutWebhook(type, 'delivery-1', {
+        id: type,
+        type,
+        environment: 'sandbox',
+        livemode: false,
+        createdAt: '2026-09-09T12:05:00.000Z',
+        data: {
+          paymentLink: {
+            id: 'link-1',
+            providerCode: 'yape',
+            amount: 24.9,
+            currency: 'PEN',
+            status,
+            updatedAt: '2026-09-09T12:05:00.000Z',
+          },
+        },
+      });
+      expect(result.updated).toBe(true);
+      expect((await exampleRepository.readPaymentLinks())[0]?.status).toBe(status);
+    },
+  );
 
   test('implements exactly the five current point operations', async () => {
     responder = request =>

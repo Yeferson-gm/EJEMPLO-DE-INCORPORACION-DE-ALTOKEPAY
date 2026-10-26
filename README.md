@@ -9,7 +9,7 @@ Aplicación de referencia para integrar la **Client API de AltokePay** desde un 
 | Experiencia | Usuario | Contrato AltokePay | Confirmación |
 |---|---|---|---|
 | Checkout de ecommerce | Comprador | Seis operaciones puntuales de `/api/v1/client/checkouts` | Webhook firmado; las lecturas HTTP solo recuperan estado |
-| Panel de Links de Pago | Comercio | Cinco operaciones puntuales de `/api/v1/client/payment-links` | Estado autoritativo de AltokePay y webhook cuando existe un Checkout asociado |
+| Panel de Links de Pago | Comercio | Cinco operaciones puntuales de `/api/v1/client/payment-links` | Webhook `payment-link.paid` y lecturas puntuales del estado autoritativo |
 
 Los dos flujos son deliberadamente independientes:
 
