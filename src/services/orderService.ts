@@ -6,7 +6,6 @@ import type { DemoPayer } from '#domain/payer';
 import type { CheckoutMethod, Order, Wallet, WebhookReceipt, WebhookReceiptStatus } from '#domain/types';
 import { HttpError } from '#lib/httpError';
 import { buildExternalId, createOrderCapability, verifyOrderCapability } from '#lib/id';
-
 import {
   type CheckoutView,
   cancelCheckout,
@@ -17,6 +16,7 @@ import {
   findCheckoutStatusById,
   retryCheckout,
 } from '#services/checkoutService';
+import { applyPaymentLinkWebhook } from '#services/merchantPaymentLinkService';
 
 const requiredText = v.pipe(v.string(), v.trim(), v.minLength(1), v.maxLength(500));
 const walletSchema = v.object({
@@ -122,6 +122,10 @@ const supportedWebhookTypes = new Set([
   'checkout.retry_created',
   'payment.received',
   'webhook.ping',
+  'payment-link.started',
+  'payment-link.paid',
+  'payment-link.expired',
+  'payment-link.canceled',
 ]);
 const expectedStatuses: Record<CheckoutWebhookPayload['type'], string> = {
   'checkout.created': 'awaiting_payment',
@@ -543,6 +547,24 @@ export const processCheckoutWebhook = (
         assertWebhookEnvironment(parsedNoOp.output);
         await persistReceipt({ eventId, deliveryId, type: envelope.type, status: 'processed', updated: false });
         resolveResult({ duplicate: false, updated: false, retryable: false, order: null });
+        return;
+      }
+      if (envelope.type.startsWith('payment-link.')) {
+        assertWebhookEnvironment(envelope);
+        const updated = await applyPaymentLinkWebhook(envelope);
+        if (updated === null) {
+          await persistReceipt({
+            eventId,
+            deliveryId,
+            type: envelope.type,
+            status: 'retryable_missing_order',
+            updated: false,
+          });
+          resolveResult({ duplicate: false, updated: false, retryable: true, order: null });
+          return;
+        }
+        await persistReceipt({ eventId, deliveryId, type: envelope.type, status: 'processed', updated });
+        resolveResult({ duplicate: false, updated, retryable: false, order: null });
         return;
       }
       const parsed = v.safeParse(checkoutWebhookSchema, envelope);
